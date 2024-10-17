@@ -1,6 +1,6 @@
 {
-    "name": "echo-fusion/evetmanager",
-    "description": "",
+    "name": "echo-fusion/eventmanager",
+    "description": "EventManager is a flexible and lightweight event handling system for PHP, allowing you to attach and trigger events with priorities and listeners.",
     "keywords": ["event manager"],
     "type": "library",
     "license": "MIT",
@@ -26,12 +26,14 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "EchoFusion\\EventManager\\Tests\\": "tests"
+            "EchoFusion\\EventManager\\Tests\\": "tests/"
         }
     },
     "scripts": {
         "test": [
-            "@cs-check","@analyze","@phpunit"
+            "@cs-check",
+            "@analyze",
+            "@phpunit"
         ],
         "phpunit": "vendor/bin/phpunit",
         "phpunit-coverage": "vendor/bin/phpunit --coverage-text",
