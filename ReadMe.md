@@ -25,7 +25,7 @@ Here’s how to use the PluginManager to set up and run:
 
 ```php
 use EchoFusion\EventManager\EventManager;
-use EchoFusion\EventManager\EventInterface;
+use EchoFusion\Contracts\EventManager\EventManagerInterface;
 
 // Create an instance of EventManager
 $eventManager = new EventManager();
