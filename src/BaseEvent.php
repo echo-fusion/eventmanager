@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace EchoFusion\EventManager;
 
+use EchoFusion\Contracts\EventManager\EventInterface;
+
 class BaseEvent implements EventInterface
 {
     protected string $name;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace EchoFusion\EventManager\Tests;
 
+use EchoFusion\Contracts\EventManager\EventInterface;
 use EchoFusion\EventManager\BaseEvent;
-use EchoFusion\EventManager\EventInterface;
 use EchoFusion\EventManager\EventManager;
 use EchoFusion\EventManager\Exceptions\DuplicateListenerException;
 use PHPUnit\Framework\TestCase;

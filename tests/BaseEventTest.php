@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace EchoFusion\EventManager\Tests;
+
 use EchoFusion\EventManager\BaseEvent;
 use PHPUnit\Framework\TestCase;
 

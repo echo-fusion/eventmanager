@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace EchoFusion\EventManager;
 
+use EchoFusion\Contracts\EventManager\EventInterface;
+use EchoFusion\Contracts\EventManager\EventManagerInterface;
 use EchoFusion\EventManager\Exceptions\DuplicateListenerException;
 
 class EventManager implements EventManagerInterface
