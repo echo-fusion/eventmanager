@@ -7,30 +7,53 @@ namespace EchoFusion\EventManager;
 use EchoFusion\Contracts\EventManager\EventInterface;
 use EchoFusion\Contracts\EventManager\EventManagerInterface;
 use EchoFusion\EventManager\Exceptions\DuplicateListenerException;
+use Psr\EventDispatcher\StoppableEventInterface;
 use function array_column;
 use function array_key_exists;
+use function array_key_first;
 use function array_splice;
+use function array_values;
+use function class_exists;
+use function count;
+use function interface_exists;
 use function usort;
 
+/**
+ * A PSR-14 event dispatcher with a built-in listener provider.
+ *
+ * Listeners are attached under a key, which is either
+ * - an event **name** (an {@see EventInterface} whose `getName()` equals the key), or
+ * - the **class or interface name** of event objects (any object that is an instance of it).
+ *
+ * `dispatch()` calls the listeners of every key that matches the event together, highest priority first.
+ */
 class EventManager implements EventManagerInterface
 {
     /**
-     * Listeners by event name.
+     * Listeners by key.
      *
-     * @var array<string, list<array{listener: callable, priority: int}>>
+     * @var array<string, list<array{listener: callable, priority: int, sequence: int}>>
      */
     protected array $listeners = [];
 
     /**
-     * Event names whose listeners are in priority order. A name is sorted when it is first used after a change,
-     * not on every attach().
+     * Keys whose listeners are in order. A key is sorted when it is first used after a change.
      *
      * @var array<string, true>
      */
     private array $sorted = [];
 
     /**
-     * @throws DuplicateListenerException when the same listener is already attached to the event
+     * Keys that name a class or an interface, matched against the type of a dispatched object.
+     *
+     * @var array<string, true>
+     */
+    private array $typeKeys = [];
+
+    private int $sequence = 0;
+
+    /**
+     * @throws DuplicateListenerException when the same listener is already attached to the key
      */
     public function attach(string $eventName, callable $listener, int $priority = 0): void
     {
@@ -40,15 +63,14 @@ class EventManager implements EventManagerInterface
             }
         }
 
-        $this->listeners[$eventName][] = ['listener' => $listener, 'priority' => $priority];
+        $this->listeners[$eventName][] = ['listener' => $listener, 'priority' => $priority, 'sequence' => $this->sequence++];
         unset($this->sorted[$eventName]);
+
+        if (class_exists($eventName) || interface_exists($eventName)) {
+            $this->typeKeys[$eventName] = true;
+        }
     }
 
-    /**
-     * Remove a listener (the same callable that was attached).
-     *
-     * @return bool whether the listener was attached
-     */
     public function detach(string $eventName, callable $listener): bool
     {
         foreach ($this->listeners[$eventName] ?? [] as $index => $registeredListener) {
@@ -56,7 +78,7 @@ class EventManager implements EventManagerInterface
                 array_splice($this->listeners[$eventName], $index, 1);
 
                 if ($this->listeners[$eventName] === []) {
-                    unset($this->listeners[$eventName], $this->sorted[$eventName]);
+                    unset($this->listeners[$eventName], $this->sorted[$eventName], $this->typeKeys[$eventName]);
                 }
 
                 return true;
@@ -72,45 +94,97 @@ class EventManager implements EventManagerInterface
     }
 
     /**
-     * The listeners of an event in the order they are called: higher priority first, attach order for equal priorities.
+     * The listeners attached under one key, in the order they are called.
      *
      * @return list<callable>
      */
     public function getListeners(string $eventName): array
     {
-        return array_column($this->sortedListeners($eventName), 'listener');
+        return array_column($this->sortedEntries($eventName), 'listener');
     }
 
     /**
-     * Call the listeners of the event, highest priority first. Propagation stops as soon as the event says so;
-     * it is checked before every listener, so an event that is already stopped calls none.
+     * PSR-14: the listeners for an event, highest priority first, equal priorities in the order they were attached.
+     *
+     * @return iterable<callable>
      */
-    public function trigger(EventInterface $event): void
+    public function getListenersForEvent(object $event): iterable
     {
-        foreach ($this->sortedListeners($event->getName()) as $listenerData) {
-            if ($event->isPropagationStopped()) {
-                return;
-            }
-
-            ($listenerData['listener'])($event);
+        $keys = [];
+        if ($event instanceof EventInterface && isset($this->listeners[$event->getName()])) {
+            $keys[$event->getName()] = true;
         }
-    }
+        foreach ($this->typeKeys as $type => $_) {
+            if ($event instanceof $type) {
+                $keys[$type] = true;
+            }
+        }
 
-    /**
-     * @return list<array{listener: callable, priority: int}>
-     */
-    private function sortedListeners(string $eventName): array
-    {
-        if (!isset($this->listeners[$eventName])) {
+        if ($keys === []) {
             return [];
         }
 
-        if (!isset($this->sorted[$eventName])) {
-            // sorting is stable since PHP 8.0, so equal priorities keep the order they were attached in
-            usort($this->listeners[$eventName], static fn (array $a, array $b): int => $b['priority'] <=> $a['priority']);
-            $this->sorted[$eventName] = true;
+        if (count($keys) === 1) {
+            return array_column($this->sortedEntries((string) array_key_first($keys)), 'listener');
         }
 
-        return $this->listeners[$eventName];
+        $entries = [];
+        foreach ($keys as $key => $_) {
+            $entries = [...$entries, ...$this->sortedEntries((string) $key)];
+        }
+        usort($entries, self::compare(...));
+
+        return array_column($entries, 'listener');
+    }
+
+    /**
+     * PSR-14: call the listeners and return the event. A stoppable event that has been stopped calls no further listener;
+     * it is checked before every listener, so an event that is already stopped calls none.
+     */
+    public function dispatch(object $event): object
+    {
+        foreach ($this->getListenersForEvent($event) as $listener) {
+            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
+                break;
+            }
+
+            $listener($event);
+        }
+
+        return $event;
+    }
+
+    /**
+     * @deprecated use dispatch(); kept so code written for version 1 keeps working
+     */
+    public function trigger(EventInterface $event): void
+    {
+        $this->dispatch($event);
+    }
+
+    /**
+     * @return list<array{listener: callable, priority: int, sequence: int}>
+     */
+    private function sortedEntries(string $key): array
+    {
+        if (!isset($this->listeners[$key])) {
+            return [];
+        }
+
+        if (!isset($this->sorted[$key])) {
+            usort($this->listeners[$key], self::compare(...));
+            $this->sorted[$key] = true;
+        }
+
+        return array_values($this->listeners[$key]);
+    }
+
+    /**
+     * @param array{priority: int, sequence: int} $a
+     * @param array{priority: int, sequence: int} $b
+     */
+    private static function compare(array $a, array $b): int
+    {
+        return [$b['priority'], $a['sequence']] <=> [$a['priority'], $b['sequence']];
     }
 }
