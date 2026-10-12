@@ -59,6 +59,27 @@ Listener 1: The event 'user.register' was triggered!
 Listener 2: The event 'user.register' was triggered!
 ```
 
+## PSR-14
+
+`EventManager` is a [PSR-14](https://www.php-fig.org/psr/psr-14/) event dispatcher **and** listener provider, so it can be used wherever a `Psr\EventDispatcher\EventDispatcherInterface` is expected, and replaced by any other PSR-14 dispatcher (such as Symfony's) without changing the code that dispatches.
+
+```php
+final class UserRegistered
+{
+    public function __construct(public readonly string $email) {}
+}
+
+$eventManager->attach(UserRegistered::class, function (UserRegistered $event) {
+    // send the welcome mail to $event->email
+});
+
+$eventManager->dispatch(new UserRegistered('ann@example.com'));   // returns the event
+```
+
+A listener key is either an **event name** (for `EventInterface` events such as `BaseEvent('user.register')`) or the **class or interface name** of event objects; the listeners of every key that matches an event run together, highest priority first. An event that implements `Psr\EventDispatcher\StoppableEventInterface` (every `EventInterface` does) can stop propagation.
+
+`trigger($event)` still works as a deprecated alias of `dispatch($event)`.
+
 ## Priorities, detaching and inspecting
 
 ```php
@@ -67,7 +88,7 @@ $eventManager->attach('user.register', $audit, -10);            // runs last; eq
 
 $eventManager->detach('user.register', $audit);                 // true when it was attached (same callable)
 $eventManager->hasListeners('user.register');                   // bool
-$eventManager->getListeners('user.register');                   // callables in the order they will run
+$eventManager->getListeners('user.register');                   // callables attached under that key, in call order
 ```
 
 * Listeners are sorted once per change, when the event is next triggered, not on every `attach()`.
