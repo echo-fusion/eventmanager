@@ -1,11 +1,12 @@
 # EventManager
 
+[![CI](https://github.com/echo-fusion/eventmanager/actions/workflows/ci.yml/badge.svg)](https://github.com/echo-fusion/eventmanager/actions/workflows/ci.yml) [![Packagist](https://img.shields.io/packagist/v/echo-fusion/eventmanager.svg)](https://packagist.org/packages/echo-fusion/eventmanager) [![PHP](https://img.shields.io/badge/php-8.1%20%7C%208.2%20%7C%208.3-777bb4.svg)](https://www.php.net) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 EventManager is a flexible and lightweight event handling system for PHP, allowing you to attach and trigger events with priorities and listeners.
 
+> Part of [EchoFusion](https://github.com/echo-fusion), a modular PHP framework built from small packages.
 
 ## Installation
-
-Install the package via Composer:
 
 ```bash
 composer require echo-fusion/eventmanager
@@ -13,19 +14,16 @@ composer require echo-fusion/eventmanager
 
 ## Requirements
 
-The following versions of PHP are supported by this version.
-
-* PHP 8.1
-* PHP 8.2
-* PHP 8.3
+* PHP 8.1, 8.2 or 8.3
 
 ## Usage
 
-Here’s how to use the PluginManager to set up and run:
+Here’s how to use the EventManager to attach listeners and trigger an event:
 
 ```php
+use EchoFusion\Contracts\EventManager\EventInterface;
+use EchoFusion\EventManager\BaseEvent;
 use EchoFusion\EventManager\EventManager;
-use EchoFusion\Contracts\EventManager\EventManagerInterface;
 
 // Create an instance of EventManager
 $eventManager = new EventManager();
@@ -56,24 +54,21 @@ $event = new class('user.register') extends BaseEvent {
 $eventManager->trigger($event);
 ```
 Output:
-```php
+```text
 Listener 1: The event 'user.register' was triggered!
 Listener 2: The event 'user.register' was triggered!
 ```
 
 ## Testing
 
-Testing includes PHPUnit and PHPStan (Level 7).
-
-``` bash
-$ composer test
+```bash
+composer test
 ```
 
 ## Credits
-Developed and maintained by [Amir Shadanfar](https://github.com/amir-shadanfar).  
-Connect on [LinkedIn](https://www.linkedin.com/in/amir-shadanfar).
+
+- [Amir Shadanfar](https://github.com/amir-shadanfar)
 
 ## License
 
-The MIT License (MIT). Please see [License File](https://github.com/echo-fusion/middlewaremanager/blob/main/LICENSE) for more information.
-
+The MIT License (MIT). Please see [LICENSE](LICENSE) for more information.
