@@ -168,4 +168,143 @@ class EventManagerTest extends TestCase
         $this->eventManager->trigger($event);
         $this->assertSame(1, $calls);
     }
+
+    public function testListenersRunByPriorityThenByAttachOrder(): void
+    {
+        $order = [];
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'low-1';
+        }, -5);
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'default-1';
+        });
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'high';
+        }, 10);
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'default-2';
+        });
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'low-2';
+        }, -5);
+
+        $this->eventManager->trigger(new BaseEvent('e'));
+
+        $this->assertSame(['high', 'default-1', 'default-2', 'low-1', 'low-2'], $order);
+    }
+
+    public function testAttachAfterATriggerIsHonoured(): void
+    {
+        $order = [];
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'b';
+        });
+        $this->eventManager->trigger(new BaseEvent('e'));
+
+        $this->eventManager->attach('e', function () use (&$order) {
+            $order[] = 'a';
+        }, 5);
+        $order = [];
+        $this->eventManager->trigger(new BaseEvent('e'));
+
+        $this->assertSame(['a', 'b'], $order);
+    }
+
+    public function testDetach(): void
+    {
+        $calls = 0;
+        $listener = function () use (&$calls) {
+            ++$calls;
+        };
+        $other = function () use (&$calls) {
+            $calls += 10;
+        };
+        $this->eventManager->attach('e', $listener);
+        $this->eventManager->attach('e', $other);
+
+        $this->assertTrue($this->eventManager->detach('e', $listener));
+        $this->assertFalse($this->eventManager->detach('e', $listener), 'already detached');
+        $this->assertFalse($this->eventManager->detach('unknown', $listener));
+
+        $this->eventManager->trigger(new BaseEvent('e'));
+        $this->assertSame(10, $calls);
+
+        $this->assertTrue($this->eventManager->detach('e', $other));
+        $this->assertFalse($this->eventManager->hasListeners('e'), 'an event without listeners is forgotten');
+    }
+
+    public function testADetachedListenerCanBeAttachedAgain(): void
+    {
+        $listener = static function () {
+        };
+        $this->eventManager->attach('e', $listener);
+        $this->eventManager->detach('e', $listener);
+        $this->eventManager->attach('e', $listener);
+
+        $this->assertSame([$listener], $this->eventManager->getListeners('e'));
+    }
+
+    public function testGetListenersAndHasListeners(): void
+    {
+        $a = static function () {
+        };
+        $b = static function () {
+        };
+        $this->eventManager->attach('e', $a, 1);
+        $this->eventManager->attach('e', $b, 9);
+
+        $this->assertTrue($this->eventManager->hasListeners('e'));
+        $this->assertFalse($this->eventManager->hasListeners('other'));
+        $this->assertSame([$b, $a], $this->eventManager->getListeners('e'));
+        $this->assertSame([], $this->eventManager->getListeners('other'));
+    }
+
+    public function testAListenerCanDetachItselfWhileTheEventIsTriggered(): void
+    {
+        $calls = [];
+        $first = null;
+        $first = function () use (&$calls, &$first) {
+            $calls[] = 'first';
+            $this->eventManager->detach('e', $first);
+        };
+        $this->eventManager->attach('e', $first, 2);
+        $this->eventManager->attach('e', function () use (&$calls) {
+            $calls[] = 'second';
+        }, 1);
+
+        $this->eventManager->trigger(new BaseEvent('e'));
+        $this->eventManager->trigger(new BaseEvent('e'));
+
+        $this->assertSame(['first', 'second', 'second'], $calls);
+    }
+
+    public function testPropagationStopsAfterAListenerStopsIt(): void
+    {
+        $calls = [];
+        $this->eventManager->attach('e', function (EventInterface $e) use (&$calls) {
+            $calls[] = 'one';
+            $e->stopPropagation();
+        }, 2);
+        $this->eventManager->attach('e', function () use (&$calls) {
+            $calls[] = 'two';
+        }, 1);
+
+        $this->eventManager->trigger(new BaseEvent('e'));
+
+        $this->assertSame(['one'], $calls);
+    }
+
+    public function testAnEventThatIsAlreadyStoppedCallsNoListener(): void
+    {
+        $called = false;
+        $this->eventManager->attach('e', function () use (&$called) {
+            $called = true;
+        });
+        $event = new BaseEvent('e');
+        $event->stopPropagation();
+
+        $this->eventManager->trigger($event);
+
+        $this->assertFalse($called);
+    }
 }
