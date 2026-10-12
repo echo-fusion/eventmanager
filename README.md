@@ -59,6 +59,22 @@ Listener 1: The event 'user.register' was triggered!
 Listener 2: The event 'user.register' was triggered!
 ```
 
+## Priorities, detaching and inspecting
+
+```php
+$eventManager->attach('user.register', $sendWelcomeMail, 10);   // higher priority runs first; default 0
+$eventManager->attach('user.register', $audit, -10);            // runs last; equal priorities keep attach order
+
+$eventManager->detach('user.register', $audit);                 // true when it was attached (same callable)
+$eventManager->hasListeners('user.register');                   // bool
+$eventManager->getListeners('user.register');                   // callables in the order they will run
+```
+
+* Listeners are sorted once per change, when the event is next triggered, not on every `attach()`.
+* Attaching the same callable twice to an event throws `DuplicateListenerException`.
+* `trigger()` checks `isPropagationStopped()` **before** each listener, so a listener that calls `$event->stopPropagation()` skips the rest, and an event that is already stopped calls none.
+* A listener may detach itself (or another) while the event is being triggered.
+
 ## Testing
 
 ```bash
